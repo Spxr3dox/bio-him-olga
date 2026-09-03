@@ -87,14 +87,77 @@
   var year = document.getElementById('year');
   if (year) year.textContent = new Date().getFullYear();
 
-  /* ---------- 6. Фон: молекулярні зв'язки ---------- */
+  /* ---------- 6. Телефон на комп'ютері ----------
+     На мобільному tel: одразу відкриває набір номера (вимога ТЗ).
+     На комп'ютері система показує вікно «чим відкрити посилання», тому там
+     клік копіює номер і показує підказку. Розмітка tel: лишається на всіх номерах. */
+  var PHONE_TEXT = '0 (68) 077 26 07';
+  var toast = document.getElementById('toast');
+  var toastText = document.getElementById('toastText');
+  var toastTimer = null;
+
+  var showToast = function (html) {
+    if (!toast) return;
+    toastText.innerHTML = html;
+    toast.classList.add('is-shown');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('is-shown'); }, 3400);
+  };
+
+  var copyText = function (text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallbackCopy(text)); });
+    } else {
+      done(fallbackCopy(text));
+    }
+  };
+
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  var isPointerDevice = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  if (isPointerDevice && toast) {
+    document.querySelectorAll('a[href^="tel:"]').forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        var number = link.getAttribute('href').replace('tel:', '');
+        copyText(number, function (ok) {
+          showToast(ok
+            ? 'Номер скопійовано: <b>' + PHONE_TEXT + '</b>'
+            : 'Телефонуйте: <b>' + PHONE_TEXT + '</b>');
+        });
+      });
+    });
+  }
+
+  /* ---------- 7. Фон: молекулярні зв'язки ---------- */
   var canvases = document.querySelectorAll('[data-bonds]');
 
   canvases.forEach(function (canvas) {
     var ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    var COLORS = ['46,196,182', '16,185,129', '0,180,216'];
+    // на світлому тлі потрібні темніші лінії, на темній картці — яскраві
+    var onDark = canvas.getAttribute('data-bonds') === 'dark';
+    var COLORS = onDark
+      ? ['46,196,182', '16,185,129', '0,180,216']
+      : ['13,148,136', '2,132,199', '5,150,105'];
+    var LINE_ALPHA = onDark ? 0.30 : 0.26;
+    var NODE_ALPHA = onDark ? 0.75 : 0.50;
     var nodes = [];
     var w = 0, h = 0, dpr = 1, raf = null, visible = true;
 
@@ -132,7 +195,7 @@
           var dx = a.x - b.x, dy = a.y - b.y;
           var dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < linkDist) {
-            ctx.strokeStyle = 'rgba(' + a.c + ',' + (0.30 * (1 - dist / linkDist)).toFixed(3) + ')';
+            ctx.strokeStyle = 'rgba(' + a.c + ',' + (LINE_ALPHA * (1 - dist / linkDist)).toFixed(3) + ')';
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -144,7 +207,7 @@
 
       for (var k = 0; k < nodes.length; k++) {
         var n = nodes[k];
-        ctx.fillStyle = 'rgba(' + n.c + ',.75)';
+        ctx.fillStyle = 'rgba(' + n.c + ',' + NODE_ALPHA + ')';
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
         ctx.fill();
